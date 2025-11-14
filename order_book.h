@@ -205,7 +205,7 @@ class order_book
   // A global allocator for all the price levels allocated by all the books.
   static level_vector s_levels;
   sorted_levels_t m_bids;
-  sorted_levels_t m_offers;
+  sorted_levels_t m_asks;
   using level_ptr_t = level_vector::__ptr;
 
   static void add_order(order_id_t const oid, book_id_t const book_idx,
@@ -227,7 +227,7 @@ class order_book
   }
   void ADD_ORDER(order_t *order, sprice_t const price, qty_t const qty)
   {
-    sorted_levels_t *sorted_levels = is_bid(price) ? &m_bids : &m_offers;
+    sorted_levels_t *sorted_levels = is_bid(price) ? &m_bids : &m_asks;
     // search descending for the price
     auto insertion_point = sorted_levels->end();
     bool found = false;
@@ -290,7 +290,7 @@ class order_book
     if (qty_t(0) == s_levels[order->level_idx].m_qty) {
       // DELETE_SORTED([order->level_idx].price);
       sprice_t price = s_levels[order->level_idx].m_price;
-      sorted_levels_t *sorted_levels = is_bid(price) ? &m_bids : &m_offers;
+      sorted_levels_t *sorted_levels = is_bid(price) ? &m_bids : &m_asks;
       auto it = sorted_levels->end();
       while (it-- != sorted_levels->begin()) {
         if (it->m_price == price) {
