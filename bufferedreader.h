@@ -2,6 +2,9 @@
 #include <assert.h>
 #include <string.h>
 #include <unistd.h>
+#include <sys/mman.h>
+#include <sys/types.h>
+#include <sys/stat.h>
 #include "types.h"
 
 // need this typing because cpp mindlessly promotes
@@ -17,26 +20,25 @@ inline read_t operator!(read_t const code)
 /** Struct for buffered reading. Everything is public to give low level access
  * if needed */
 typedef struct buf {
-  buf(unsigned int len) : ptr(new char[len]), len(len), limit(0), pos(0) {}
-  ~buf() { delete[] ptr; }
-  char *const ptr;
-  /** Length of buf */
-  unsigned int const len;  // could be private
-  /** Position of last byte read into buf */
-  unsigned int limit;  // could be private
-  unsigned int pos;
-  size_t bytesread;
+  buf(int fd): fd(fd) {
+   struct stat sb;
+   fstat(fd, &sb);
+   limit = sb.st_size;
+   ptr = (char *) mmap(NULL, sb.st_size, PROT_READ, MAP_PRIVATE, fd, 0);
+  }
+  ~buf() { munmap( ptr, limit ); }
+
+  char *ptr;
+
+  uint64_t limit; // size of mapped file
+  uint64_t pos;
   fd_t fd = -1;
+
   /** Returns a pointer to ptr + pos + idx */
   char const *get(unsigned int idx) const
   {
-#if 0  // optimization
-		assert (pos + idx <= limit);
-#endif
     return ptr + pos + idx;
   }
-  // maybe this could be useful ?
-  // char head(void) const { return *(ptr + pos); }
 
   /** Returns available bytes in buf */
   unsigned available(void) const { return limit - pos; }
@@ -44,25 +46,10 @@ typedef struct buf {
   {
     return pos + n <= limit;  // faster than available() >= n;
   }
-  /** Returns available space to read bytes into */
-  unsigned free_space(void) const { return len - limit; }
   void advance(unsigned bytes)
   {
     pos += bytes;
     assert(pos <= limit);
-  }
-  void discard_to_pos(void)
-  {
-    if (pos && pos < limit)
-      memmove((void *)ptr, ptr + pos,
-              limit - pos);  // shift to beginning of buf
-    limit -= pos;
-    pos = 0;
-  }
-  void cleanup(void)
-  {
-    limit = pos = 0;
-    fd = -1;
   }
   /* blocking read. blocks until 1 or more (until available()) bytes are
    * available.
@@ -77,7 +64,5 @@ typedef struct buf {
    * it tries to read as many bytes as necessary to get n bytes
    * in the buffer. Returns false if read(n) returns <= 0.
    */
-  read_t ensure(unsigned n);
-  /* non blocking read for use in a select / multiplexing event loop */
-  ssize_t nb_read(void);
+  read_t ensure(unsigned n) { return pos+n <= limit ? read_t::OK : read_t::ERR; }
 } buf_t;

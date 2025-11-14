@@ -2,6 +2,7 @@
 #include <cstdio>
 #include <limits>
 #include <memory>
+#include <fcntl.h>
 #include "bufferedreader.h"
 #include "itch.h"
 #include "order_book.h"
@@ -36,10 +37,17 @@ static sprice_t mksigned(price_t price, BUY_SELL buy)
     break;                              \
   }
 
-int main()
+int main(int argc, char *argv[])
 {
-  buf_t buf(1024);
-  buf.fd = STDIN_FILENO;
+  std::string filename;
+
+  int fd = STDIN_FILENO;
+  if ( argc==2 ) {
+    fd = open( argv[1], O_RDONLY );
+    filename = std::string( basename(argv[1]) );
+  }
+  buf_t buf(fd);
+
   std::chrono::steady_clock::time_point start;
   size_t npkts = 0;
 #define BUILD_BOOK 1
