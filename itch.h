@@ -1,4 +1,5 @@
 #pragma once
+#include <vector>
 #include <sys/types.h>
 
 enum class itch_t {
@@ -82,10 +83,24 @@ struct itch_message {
 };
 
 enum class BUY_SELL : char { BUY = 'B', SELL = 'S' };
+enum class MARKET_CATEGORY : char
+{
+    NASDAQ_GLOBAL_SELECT = 'Q',
+    NASDAQ_GLOBAL_MARKET = 'G',
+    NASDAQ_CAPITAL_MARKET = 'S',
+    NYSE = 'N',
+    NYSE_AMERICAN = 'A',
+    NYSE_ARCA = 'P',
+    BATS_Z = 'Z',
+    INVESTORS_EXCHANGE = 'V',
+    NOT_AVAILABLE = ' '
+};
 enum class timestamp_t : uint64_t {};
 enum class oid_t : uint64_t {};
 enum class price_t : uint32_t {};
 enum class qty_t : uint32_t {};
+enum class symbol_t : uint64_t {};
+
 static uint64_t read_eight(char const *src)
 {
   return be64toh(*(uint64_t const *)src);
@@ -112,9 +127,46 @@ static timestamp_t read_timestamp(char const *src)
   return timestamp_t(read_six(src));
 }
 static oid_t read_oid(char const *src) { return oid_t(read_eight(src)); }
+static symbol_t read_symbol(char const *src) { return symbol_t( *(uint64_t const *)src ); }
 static price_t read_price(char const *src) { return price_t(read_four(src)); }
 static qty_t read_qty(char const *src) { return qty_t(read_four(src)); }
 static uint16_t read_locate(char const *src) { return read_two(src); }
+static uint16_t read_tracking_no(char const *src) { return read_two(src); }
+extern std::vector<symbol_t> symbol_from_locate;
+static char *string_from_locate( uint16_t locate ) { return (char *) ((uint64_t *) symbol_from_locate.data()+locate); }
+
+using directory_order_t = itch_message<MSG::STOCK_DIRECTORY>;
+template<>
+struct itch_message<MSG::STOCK_DIRECTORY> {
+  itch_message(uint16_t __stock_locate, uint16_t __tracking_no, timestamp_t __timestamp, symbol_t __symbol,
+               MARKET_CATEGORY __market_category )
+      : stock_locate( __stock_locate),
+        tracking_no( __tracking_no),
+        timestamp(__timestamp),
+        symbol(__symbol),
+        market_category( __market_category )
+  {
+    if ( stock_locate >= symbol_from_locate.size() ) {
+        symbol_from_locate.resize( stock_locate+1 );
+    }
+    symbol_from_locate[stock_locate] = symbol;
+  }
+  uint16_t const stock_locate;
+  uint16_t const tracking_no;
+  timestamp_t const timestamp;
+  symbol_t const symbol;
+  MARKET_CATEGORY const market_category;
+
+  static itch_message parse(char const *ptr)
+  {
+    return directory_order_t( read_locate     ( ptr + 1 ),
+                              read_tracking_no( ptr + 3 ),
+                              read_timestamp  ( ptr + 5 ),
+                              read_symbol     ( ptr + 11 ),
+                              MARKET_CATEGORY(*(ptr + 19)));
+  }
+};
+
 using add_order_t = itch_message<MSG::ADD_ORDER>;
 template <>
 struct itch_message<MSG::ADD_ORDER> {

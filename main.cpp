@@ -3,9 +3,12 @@
 #include <limits>
 #include <memory>
 #include <fcntl.h>
+#include <iostream>
 #include "bufferedreader.h"
 #include "itch.h"
 #include "order_book.h"
+
+std::vector<symbol_t> symbol_from_locate;
 
 template <itch_t __code>
 class PROCESS
@@ -160,6 +163,20 @@ int main(int argc, char *argv[])
       }
     }
   }
+
+  std::vector<std::string> symbol_lookup(symbol_from_locate.size());
+  for ( size_t i = 0; i < symbol_from_locate.size(); i++ ) {
+    char *s = string_from_locate( i );
+    if ( '\0'==s[0] ) continue;
+    for ( size_t j = 0; j < 8; j++ ) {
+        if ( ' '==s[j] ) {
+            s[j] = '\0';
+            break;
+        }
+    }
+    symbol_lookup[i] = s;
+  }
+
 #if !BUILD_BOOK
   printf("%lu adds\n", nadds);
   printf("maxoid %lu\n", maxoid);
