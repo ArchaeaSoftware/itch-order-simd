@@ -53,18 +53,12 @@ int main(int argc, char *argv[])
 
   std::chrono::steady_clock::time_point start;
   size_t npkts = 0;
-#define BUILD_BOOK 1
-#if !BUILD_BOOK
-  size_t nadds(0);
-  uint64_t maxoid(0);
-#else
   // order_book::oid_map.max_load_factor(0.5);
   order_book::oid_map.reserve(order_id_t(184118975 * 2));  // the first number
                                                            // is the empirically
                                                            // largest oid seen.
                                                            // multiply by 2 for
                                                            // good measure
-#endif
   printf("%lu\n", sizeof(order_book) * order_book::MAX_BOOKS);
   while (is_ok(buf.ensure(3))) {
     if (npkts) ++npkts;
@@ -93,66 +87,43 @@ int main(int argc, char *argv[])
         auto const pkt = PROCESS<itch_t::ADD_ORDER>::read_from(&buf);
         assert(uint64_t(pkt.oid) <
                uint64_t(std::numeric_limits<int32_t>::max()));
-#if BUILD_BOOK
         order_book::add_order(order_id_t(pkt.oid), book_id_t(pkt.stock_locate),
                               mksigned(pkt.price, pkt.buy), pkt.qty);
-#else
-        int64_t oid = int64_t(pkt.oid);
-        maxoid = maxoid > uint64_t(pkt.oid) ? maxoid : uint64_t(pkt.oid);
-        // printf("oid:%lu, nadds:%lu, npkts:%lu, %lu, %lu, %f, %f\n", oid,
-        // nadds, npkts, maxoid, oid - (int64_t)npkts, oid / (double)nadds, oid
-        // / (double)npkts);
-        ++nadds;
-#endif
         break;
       }
       case (itch_t::ADD_ORDER_MPID): {
         auto const pkt = PROCESS<itch_t::ADD_ORDER_MPID>::read_from(&buf);
-#if BUILD_BOOK
         order_book::add_order(
             order_id_t(pkt.add_msg.oid), book_id_t(pkt.add_msg.stock_locate),
             mksigned(pkt.add_msg.price, pkt.add_msg.buy), pkt.add_msg.qty);
-#else
-        ++nadds;
-#endif
         break;
       }
       case (itch_t::EXECUTE_ORDER): {
         auto const pkt = PROCESS<itch_t::EXECUTE_ORDER>::read_from(&buf);
-#if BUILD_BOOK
         order_book::execute_order(order_id_t(pkt.oid), pkt.qty);
-#endif
         break;
       }
       case (itch_t::EXECUTE_ORDER_WITH_PRICE): {
         auto const pkt =
             PROCESS<itch_t::EXECUTE_ORDER_WITH_PRICE>::read_from(&buf);
-#if BUILD_BOOK
         order_book::execute_order(order_id_t(pkt.exec.oid), pkt.exec.qty);
-#endif
         break;
       }
       case (itch_t::REDUCE_ORDER): {
         auto const pkt = PROCESS<itch_t::REDUCE_ORDER>::read_from(&buf);
-#if BUILD_BOOK
         order_book::cancel_order(order_id_t(pkt.oid), pkt.qty);
-#endif
         break;
       }
       case (itch_t::DELETE_ORDER): {
         auto const pkt = PROCESS<itch_t::DELETE_ORDER>::read_from(&buf);
-#if BUILD_BOOK
         order_book::delete_order(order_id_t(pkt.oid));
-#endif
         break;
       }
       case (itch_t::REPLACE_ORDER): {
         auto const pkt = PROCESS<itch_t::REPLACE_ORDER>::read_from(&buf);
-#if BUILD_BOOK
         order_book::replace_order(order_id_t(pkt.oid),
                                   order_id_t(pkt.new_order_id), pkt.new_qty,
                                   mksigned(pkt.new_price, BUY_SELL::BUY));
-#endif
         // actually it will get re-signed inside. code smell
         break;
       }
@@ -177,10 +148,6 @@ int main(int argc, char *argv[])
     symbol_lookup[i] = s;
   }
 
-#if !BUILD_BOOK
-  printf("%lu adds\n", nadds);
-  printf("maxoid %lu\n", maxoid);
-#endif
   std::chrono::steady_clock::time_point end = std::chrono::steady_clock::now();
   size_t nanos =
       std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count();
