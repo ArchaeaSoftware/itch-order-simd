@@ -24,6 +24,7 @@ typedef struct buf {
    struct stat sb;
    fstat(fd, &sb);
    limit = sb.st_size;
+   pos = 0;
    ptr = (char *) mmap(NULL, sb.st_size, PROT_READ, MAP_PRIVATE, fd, 0);
   }
   ~buf() { munmap( ptr, limit ); }
