@@ -1,5 +1,9 @@
 #pragma once
 #include <vector>
+#include <cstdint>
+#include "itch.h"
+#include <type_traits>
+#include <cassert>
 
 /* This is an optimized order book implementation.
  * Conceptually an order book is two sets of levels, with each
@@ -50,9 +54,6 @@
  * from stl container resizing.
  */
 
-// TODO replace casts with following:
-#define MKPRIMITIVE(__x) ((std::underlying_type<decltype(__x)>::type)__x)
-
 //#define TRACE 1
 
 constexpr bool is_power_of_two(uint64_t n)
@@ -60,11 +61,15 @@ constexpr bool is_power_of_two(uint64_t n)
   return (n != 0 && ((n & (n - 1)) == 0));
 }
 
-enum class sprice_t : int32_t {};
+using sprice_t = int32_t;
 bool constexpr is_bid(sprice_t const x) { return int32_t(x) >= 0; }
-#define MEMORY_DEFS    \
-  using __ptr = ptr_t; \
-  using size_t__ = typename std::underlying_type<ptr_t>::type;
+// Helper to extract an integral underlying type for ptr_t while avoiding
+// hard errors when ptr_t is not an enum. If ptr_t is an enum, use
+// std::underlying_type<ptr_t>::type. Otherwise use ptr_t directly.
+template<typename P, bool IsEnum = std::is_enum<P>::value>
+struct ptr_underlying { using type = P; };
+template<typename P>
+struct ptr_underlying<P, true> { using type = typename std::underlying_type<P>::type; };
 
 /* A custom, pooling allocator. It uses a non-shrinking vector as its pool,
  * and a vector (LIFO stack) as its free list.
@@ -90,7 +95,8 @@ template <class T, typename ptr_t, size_t SIZE_HINT>
 class pool
 {
  public:
-  MEMORY_DEFS;
+  using __ptr = ptr_t;
+  using size_t__ = typename ptr_underlying<ptr_t>::type;
   std::vector<T> m_allocated;
   std::vector<ptr_t> m_free;
   pool() { m_allocated.reserve(SIZE_HINT); }
@@ -123,9 +129,9 @@ class level
   level() {}
 };
 
-enum class book_id_t : uint16_t {};
-enum class level_id_t : uint32_t {};
-enum class order_id_t : uint32_t {};
+using book_id_t = uint16_t;
+using level_id_t = uint32_t;
+using order_id_t = uint32_t;
 
 /* A datatype representing an order. Since this order book only wants
  * to know the size at each level it just remembers its quantity. If
@@ -187,11 +193,6 @@ bool operator>(price_level a, price_level b)
 struct order_id_hash {
   size_t operator()(order_id_t const id) const { return size_t(id); }
 };
-
-qty_t operator+(qty_t const a, qty_t const b)
-{
-  return qty_t(MKPRIMITIVE(a) + MKPRIMITIVE(b));
-}
 
 class order_book
 {
@@ -271,24 +272,16 @@ class order_book
   // shared between cancel(aka partial cancel aka reduce) and execute
   void REDUCE_ORDER(order_t *order, qty_t const qty)
   {
-    auto tmp = MKPRIMITIVE(s_levels[order->level_idx].m_qty);
-    tmp -= MKPRIMITIVE(qty);
-    s_levels[order->level_idx].m_qty = qty_t(tmp);
-
-    tmp = MKPRIMITIVE(order->m_qty);
-    tmp -= MKPRIMITIVE(qty);
-    order->m_qty = qty_t(tmp);
+    // subtract the reduced quantity from both the level and the order
+    s_levels[order->level_idx].m_qty -= qty;
+    order->m_qty -= qty;
   }
   // shared between delete and execute
   void DELETE_ORDER(order_t *order)
   {
-    assert(MKPRIMITIVE(s_levels[order->level_idx].m_qty) >=
-           MKPRIMITIVE(order->m_qty));
-    auto tmp = MKPRIMITIVE(s_levels[order->level_idx].m_qty);
-    tmp -= MKPRIMITIVE(order->m_qty);
-    s_levels[order->level_idx].m_qty = qty_t(tmp);
+    assert(s_levels[order->level_idx].m_qty >= order->m_qty);
+    s_levels[order->level_idx].m_qty -= order->m_qty;
     if (qty_t(0) == s_levels[order->level_idx].m_qty) {
-      // DELETE_SORTED([order->level_idx].price);
       sprice_t price = s_levels[order->level_idx].m_price;
       sorted_levels_t *sorted_levels = is_bid(price) ? &m_bids : &m_asks;
       auto it = sorted_levels->end();
@@ -307,7 +300,7 @@ class order_book
     printf("EXECUTE %lu %u\n", oid, qty);
 #endif  // TRACE
     order_t *order = oid_map.get(oid);
-    order_book *book = &s_books[MKPRIMITIVE(order->book_idx)];
+    order_book *book = &s_books[order->book_idx];
 
     if (qty == order->m_qty) {
       book->DELETE_ORDER(order);
@@ -322,13 +315,10 @@ class order_book
     printf("REPLACE %lu %lu %d %u\n", old_oid, new_oid, new_price, new_qty);
 #endif  // TRACE
     order_t *order = oid_map.get(old_oid);
-    order_book *book = &s_books[MKPRIMITIVE(order->book_idx)];
+    order_book *book = &s_books[order->book_idx];
     bool const bid = is_bid(book->s_levels[order->level_idx].m_price);
     book->DELETE_ORDER(order);
-    if (!bid) {
-      new_price = sprice_t(-1 * MKPRIMITIVE(new_price));
-    }
-    book->add_order(new_oid, order->book_idx, new_price, new_qty);
+    book->add_order(new_oid, order->book_idx, bid?new_price:-new_price, new_qty);
   }
 };
 

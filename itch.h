@@ -95,11 +95,11 @@ enum class MARKET_CATEGORY : char
     INVESTORS_EXCHANGE = 'V',
     NOT_AVAILABLE = ' '
 };
-enum class timestamp_t : uint64_t {};
-enum class oid_t : uint64_t {};
-enum class price_t : uint32_t {};
-enum class qty_t : uint32_t {};
-enum class symbol_t : uint64_t {};
+using timestamp_t = uint64_t;
+using oid_t = uint64_t;
+using price_t = uint32_t;
+using qty_t = uint32_t;
+using symbol_t = uint64_t;
 
 static uint64_t read_eight(char const *src)
 {

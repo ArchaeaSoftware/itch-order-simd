@@ -29,11 +29,10 @@ class PROCESS
 
 static sprice_t mksigned(price_t price, BUY_SELL buy)
 {
-  assert(MKPRIMITIVE(price) < std::numeric_limits<int32_t>::max());
-  auto ret = MKPRIMITIVE(price);
-  if (BUY_SELL::SELL == buy) ret = -ret;
-  return sprice_t(ret);
+  assert(price < std::numeric_limits<int32_t>::max());
+  return buy == BUY_SELL::BUY ? price : -price;
 }
+
 #define DO_CASE(__itch_t)               \
   case (__itch_t): {                    \
     PROCESS<__itch_t>::read_from(&buf); \
