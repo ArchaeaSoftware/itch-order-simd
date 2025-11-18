@@ -1,6 +1,7 @@
 #pragma once
 #include <vector>
 #include <cstdint>
+#include <cstdio>
 #include "itch.h"
 #include <type_traits>
 #include <cassert>
@@ -185,28 +186,25 @@ class oidmap
   }
 };
 
-bool operator>(price_level a, price_level b)
-{
-  return int32_t(a.m_price) > int32_t(b.m_price);
-}
-
 struct order_id_hash {
   size_t operator()(order_id_t const id) const { return size_t(id); }
 };
 
+enum class LAYOUT { ARRAY_OF_STRUCTS, STRUCT_OF_ARRAYS };
+enum class TARGET_ISA { GENERIC_C, AVX2 };
+
+template<typename Derived, LAYOUT layout, TARGET_ISA isa, bool TRACE = false>
 class order_book
 {
  public:
   static constexpr size_t MAX_BOOKS = 1 << 14;
   static constexpr size_t NUM_LEVELS = 1 << 20;
-  static order_book *s_books;  // can we allocate this on the stack?
+  static Derived s_books[MAX_BOOKS];  // can we allocate this on the stack?
   static oidmap<order_t> oid_map;
   using level_vector = pool<level, level_id_t, NUM_LEVELS>;
   using sorted_levels_t = std::vector<price_level>;
   // A global allocator for all the price levels allocated by all the books.
   static level_vector s_levels;
-  sorted_levels_t m_bids;
-  sorted_levels_t m_asks;
   using level_ptr_t = level_vector::__ptr;
 
   static void add_order(order_id_t const oid, book_id_t const book_idx,
@@ -220,12 +218,62 @@ class order_book
     order->m_qty = qty;
     order->book_idx = book_idx;
 
-    s_books[size_t(book_idx)].ADD_ORDER(order, price, qty);
-#if TRACE
-    auto lvl = oid_map[oid].level_idx;
-    printf(", %u, %u \n", lvl, s_books[size_t(book_idx)].s_levels[lvl].m_qty);
-#endif  // TRACE
+    static_cast<Derived *>(&s_books[size_t(order->book_idx)])->ADD_ORDER(order, price, qty);
+    if ( TRACE ) {
+      auto lvl = oid_map[oid].level_idx;
+      printf(", %u, %u \n", lvl, s_books[size_t(book_idx)].s_levels[lvl].m_qty);
+    }
   }
+  static void delete_order(order_id_t const oid)
+  {
+    if ( TRACE ) {
+      printf("DELETE %u\n", oid);
+    }
+      order_t *order = oid_map.get(oid);
+      static_cast<Derived *>(&s_books[size_t(order->book_idx)])->DELETE_ORDER(order);
+  }
+  static void cancel_order(order_id_t const oid, qty_t const qty)
+  {
+    if ( TRACE ) {
+      printf("REDUCE %u, %u\n", oid, qty);
+    }
+    order_t *order = oid_map.get(oid);
+    static_cast<Derived *>(&s_books[size_t(order->book_idx)])->REDUCE_ORDER(order, qty);
+  }
+  static void execute_order(order_id_t const oid, qty_t const qty)
+  {
+    if ( TRACE ) {
+      printf("EXECUTE %lu %u\n", uint64_t(oid), qty);
+    }
+    order_t *order = oid_map.get(oid);
+    auto book = static_cast<Derived *>(&s_books[size_t(order->book_idx)]);
+
+    if (qty == order->m_qty) {
+      book->DELETE_ORDER(order);
+    } else {
+      book->REDUCE_ORDER(order, qty);
+    }
+  }
+  static void replace_order(order_id_t const old_oid, order_id_t const new_oid,
+                              qty_t const new_qty, sprice_t new_price)
+  {
+    if ( TRACE ) {
+      printf("REPLACE %lu %lu %d %u\n", uint64_t(old_oid), uint64_t(new_oid), int32_t(new_price), uint32_t(new_qty));
+    }
+    order_t *order = oid_map.get(old_oid);
+    auto book = static_cast<Derived *>(&s_books[size_t(order->book_idx)]);
+    bool const bid = is_bid(book->s_levels[order->level_idx].m_price);
+    book->DELETE_ORDER(order);
+    book->add_order(new_oid, order->book_idx, (bid) ? new_price : -new_price, new_qty);
+  }
+};
+
+class order_book_scalar : public order_book<order_book_scalar, LAYOUT::ARRAY_OF_STRUCTS, TARGET_ISA::GENERIC_C>
+{
+public:
+  using sorted_levels_t = std::vector<price_level>;
+  sorted_levels_t m_bids;
+  sorted_levels_t m_asks;
   void ADD_ORDER(order_t *order, sprice_t const price, qty_t const qty)
   {
     sorted_levels_t *sorted_levels = is_bid(price) ? &m_bids : &m_asks;
@@ -253,22 +301,6 @@ class order_book
     }
     s_levels[order->level_idx].m_qty = s_levels[order->level_idx].m_qty + qty;
   }
-  static void delete_order(order_id_t const oid)
-  {
-#if TRACE
-    printf("DELETE %lu\n", oid);
-#endif  // TRACE
-    order_t *order = oid_map.get(oid);
-    s_books[size_t(order->book_idx)].DELETE_ORDER(order);
-  }
-  static void cancel_order(order_id_t const oid, qty_t const qty)
-  {
-#if TRACE
-    printf("REDUCE %lu, %u\n", oid, qty);
-#endif  // TRACE
-    order_t *order = oid_map.get(oid);
-    s_books[size_t(order->book_idx)].REDUCE_ORDER(order, qty);
-  }
   // shared between cancel(aka partial cancel aka reduce) and execute
   void REDUCE_ORDER(order_t *order, qty_t const qty)
   {
@@ -294,34 +326,5 @@ class order_book
       s_levels.free(order->level_idx);
     }
   }
-  static void execute_order(order_id_t const oid, qty_t const qty)
-  {
-#if TRACE
-    printf("EXECUTE %lu %u\n", oid, qty);
-#endif  // TRACE
-    order_t *order = oid_map.get(oid);
-    order_book *book = &s_books[order->book_idx];
-
-    if (qty == order->m_qty) {
-      book->DELETE_ORDER(order);
-    } else {
-      book->REDUCE_ORDER(order, qty);
-    }
-  }
-  static void replace_order(order_id_t const old_oid, order_id_t const new_oid,
-                            qty_t const new_qty, sprice_t new_price)
-  {
-#if TRACE
-    printf("REPLACE %lu %lu %d %u\n", old_oid, new_oid, new_price, new_qty);
-#endif  // TRACE
-    order_t *order = oid_map.get(old_oid);
-    order_book *book = &s_books[order->book_idx];
-    bool const bid = is_bid(book->s_levels[order->level_idx].m_price);
-    book->DELETE_ORDER(order);
-    book->add_order(new_oid, order->book_idx, bid?new_price:-new_price, new_qty);
-  }
 };
 
-oidmap<order_t> order_book::oid_map = oidmap<order_t>();
-order_book *order_book::s_books = new order_book[order_book::MAX_BOOKS];
-order_book::level_vector order_book::s_levels = level_vector();

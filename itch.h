@@ -1,5 +1,6 @@
 #pragma once
 #include <vector>
+#include <cstring>
 #include <sys/types.h>
 
 enum class itch_t {

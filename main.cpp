@@ -39,26 +39,27 @@ static sprice_t mksigned(price_t price, BUY_SELL buy)
     break;                              \
   }
 
-int main(int argc, char *argv[])
+template<typename T>
+double
+timeBacktest( const std::string filename )
 {
-  std::string filename;
+  int fd = open( filename.c_str(), O_RDONLY );
 
-  int fd = STDIN_FILENO;
-  if ( argc==2 ) {
-    fd = open( argv[1], O_RDONLY );
-    filename = std::string( basename(argv[1]) );
+  if ( fd < 0 ) {
+    fprintf( stderr, "Could not open file %s\n", filename.c_str() );
+    return 0.0;
   }
-  buf_t buf(fd);
 
+  buf_t buf(fd);
   std::chrono::steady_clock::time_point start;
   size_t npkts = 0;
   // order_book::oid_map.max_load_factor(0.5);
-  order_book::oid_map.reserve(order_id_t(184118975 * 2));  // the first number
-                                                           // is the empirically
-                                                           // largest oid seen.
-                                                           // multiply by 2 for
-                                                           // good measure
-  printf("%lu\n", sizeof(order_book) * order_book::MAX_BOOKS);
+  T::oid_map.reserve(order_id_t(184118975 * 2));  // the first number
+                                                  // is the empirically
+                                                  // largest oid seen.
+                                                  // multiply by 2 for
+                                                  // good measure
+  printf("%lu\n", sizeof(T) * T::MAX_BOOKS);
   while (is_ok(buf.ensure(3))) {
     if (npkts) ++npkts;
     itch_t const msgtype = itch_t(*buf.get(2));
@@ -86,41 +87,41 @@ int main(int argc, char *argv[])
         auto const pkt = PROCESS<itch_t::ADD_ORDER>::read_from(&buf);
         assert(uint64_t(pkt.oid) <
                uint64_t(std::numeric_limits<int32_t>::max()));
-        order_book::add_order(order_id_t(pkt.oid), book_id_t(pkt.stock_locate),
+        T::add_order(order_id_t(pkt.oid), book_id_t(pkt.stock_locate),
                               mksigned(pkt.price, pkt.buy), pkt.qty);
         break;
       }
       case (itch_t::ADD_ORDER_MPID): {
         auto const pkt = PROCESS<itch_t::ADD_ORDER_MPID>::read_from(&buf);
-        order_book::add_order(
+        T::add_order(
             order_id_t(pkt.add_msg.oid), book_id_t(pkt.add_msg.stock_locate),
             mksigned(pkt.add_msg.price, pkt.add_msg.buy), pkt.add_msg.qty);
         break;
       }
       case (itch_t::EXECUTE_ORDER): {
         auto const pkt = PROCESS<itch_t::EXECUTE_ORDER>::read_from(&buf);
-        order_book::execute_order(order_id_t(pkt.oid), pkt.qty);
+        T::execute_order(order_id_t(pkt.oid), pkt.qty);
         break;
       }
       case (itch_t::EXECUTE_ORDER_WITH_PRICE): {
         auto const pkt =
             PROCESS<itch_t::EXECUTE_ORDER_WITH_PRICE>::read_from(&buf);
-        order_book::execute_order(order_id_t(pkt.exec.oid), pkt.exec.qty);
+        T::execute_order(order_id_t(pkt.exec.oid), pkt.exec.qty);
         break;
       }
       case (itch_t::REDUCE_ORDER): {
         auto const pkt = PROCESS<itch_t::REDUCE_ORDER>::read_from(&buf);
-        order_book::cancel_order(order_id_t(pkt.oid), pkt.qty);
+        T::cancel_order(order_id_t(pkt.oid), pkt.qty);
         break;
       }
       case (itch_t::DELETE_ORDER): {
         auto const pkt = PROCESS<itch_t::DELETE_ORDER>::read_from(&buf);
-        order_book::delete_order(order_id_t(pkt.oid));
+        T::delete_order(order_id_t(pkt.oid));
         break;
       }
       case (itch_t::REPLACE_ORDER): {
         auto const pkt = PROCESS<itch_t::REPLACE_ORDER>::read_from(&buf);
-        order_book::replace_order(order_id_t(pkt.oid),
+        T::replace_order(order_id_t(pkt.oid),
                                   order_id_t(pkt.new_order_id), pkt.new_qty,
                                   mksigned(pkt.new_price, BUY_SELL::BUY));
         // actually it will get re-signed inside. code smell
@@ -152,4 +153,21 @@ int main(int argc, char *argv[])
       std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count();
   printf("%lu packets in %lu nanos , %.2f nanos per packet \n", npkts, nanos,
          nanos / (double)npkts);
+    return nanos / (double)npkts;
+}
+
+int main(int argc, char *argv[])
+{
+  std::string filename;
+
+  if ( argc==2 ) {
+    filename = std::string( basename(argv[1]) );
+  }
+  else {
+    fprintf( stderr, "Usage: %s <itch_file>\n", argv[0] );
+    return 1; 
+  }
+  timeBacktest<order_book_scalar>( filename );
+  return 0;
+
 }
