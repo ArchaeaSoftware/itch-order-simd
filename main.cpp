@@ -167,7 +167,8 @@ int main(int argc, char *argv[])
     fprintf( stderr, "Usage: %s <itch_file>\n", argv[0] );
     return 1; 
   }
-  timeBacktest<order_book_scalar>( filename );
+  timeBacktest<order_book_soa>( filename );
+  //timeBacktest<order_book_scalar>( filename );
   return 0;
 
 }
