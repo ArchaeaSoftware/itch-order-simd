@@ -199,20 +199,20 @@ class order_book
  public:
   static constexpr size_t MAX_BOOKS = 1 << 14;
   static constexpr size_t NUM_LEVELS = 1 << 20;
-  static Derived s_books[MAX_BOOKS];  // can we allocate this on the stack?
-  static oidmap<order_t> oid_map;
+  static inline Derived s_books[MAX_BOOKS];  // can we allocate this on the stack?
+  static inline oidmap<order_t> oid_map;
   using level_vector = pool<level, level_id_t, NUM_LEVELS>;
   using sorted_levels_t = std::vector<price_level>;
   // A global allocator for all the price levels allocated by all the books.
-  static level_vector s_levels;
+  static inline level_vector s_levels;
   using level_ptr_t = level_vector::__ptr;
 
   static void add_order(order_id_t const oid, book_id_t const book_idx,
                         sprice_t const price, qty_t const qty)
   {
-#if TRACE
-    printf("ADD %lu, %u, %d, %u", oid, book_idx, price, qty);
-#endif  // TRACE
+    if ( TRACE ) {
+      printf("ADD %u, %u, %d, %u", oid, book_idx, price, qty);
+    }
     oid_map.reserve(oid);
     order *order = oid_map.get(oid);
     order->m_qty = qty;
