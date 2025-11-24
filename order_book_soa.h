@@ -1,4 +1,4 @@
-class order_book_soa : public order_book<order_book_soa, LAYOUT::ARRAY_OF_STRUCTS, TARGET_ISA::GENERIC_C>
+class order_book_soa : public order_book<order_book_soa, order_level_t, LAYOUT::ARRAY_OF_STRUCTS, TARGET_ISA::GENERIC_C>
 {
 public:
   using sorted_prices_t = std::vector<sprice_t>;
@@ -22,7 +22,7 @@ public:
     }
   }
 #endif
-  void ADD_ORDER(order_t *order, sprice_t const price, qty_t const qty)
+  void ADD_ORDER(order_level_t *order, sprice_t const price, qty_t const qty)
   {
     sorted_prices_t& sorted_prices = is_bid(price) ? m_bid_prices : m_ask_prices;
     sorted_levels_t& sorted_levels = is_bid(price) ? m_bid_levels : m_ask_levels;
@@ -57,7 +57,7 @@ public:
 #endif
   }
   // shared between cancel(aka partial cancel aka reduce) and execute
-  void REDUCE_ORDER(order_t *order, qty_t const qty)
+  void REDUCE_ORDER(order_level_t *order, qty_t const qty)
   {
     // subtract the reduced quantity from both the level and the order
     s_levels[order->level_idx].m_qty -= qty;
@@ -70,7 +70,7 @@ public:
 #endif
   }
   // shared between delete and execute
-  void DELETE_ORDER(order_t *order)
+  void DELETE_ORDER(order_level_t *order)
   {
     assert(s_levels[order->level_idx].m_qty >= order->m_qty);
 #if CROSS_CHECK

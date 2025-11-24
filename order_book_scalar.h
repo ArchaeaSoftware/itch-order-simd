@@ -1,17 +1,17 @@
-class order_book_scalar : public order_book<order_book_scalar, LAYOUT::ARRAY_OF_STRUCTS, TARGET_ISA::GENERIC_C>
+class order_book_scalar : public order_book<order_book_scalar, order_level_t, LAYOUT::ARRAY_OF_STRUCTS, TARGET_ISA::GENERIC_C>
 {
 public:
-  using sorted_levels_t = std::vector<price_level>;
+  using sorted_levels_t = std::vector<price_level_indirect>;
   sorted_levels_t m_bids;
   sorted_levels_t m_asks;
-  void ADD_ORDER(order_t *order, sprice_t const price, qty_t const qty)
+  void ADD_ORDER(order_level_t *order, sprice_t const price, qty_t const qty)
   {
     sorted_levels_t *sorted_levels = is_bid(price) ? &m_bids : &m_asks;
     // search descending for the price
     auto insertion_point = sorted_levels->end();
     bool found = false;
     while (insertion_point-- != sorted_levels->begin()) {
-      price_level &curprice = *insertion_point;
+      price_level_indirect &curprice = *insertion_point;
       if (curprice.m_price == price) {
         order->level_idx = curprice.m_ptr;
         found = true;
@@ -25,21 +25,21 @@ public:
       order->level_idx = s_levels.alloc();
       s_levels[order->level_idx].m_qty = qty_t(0);
       s_levels[order->level_idx].m_price = price;
-      price_level const px(price, order->level_idx);
+      price_level_indirect const px(price, order->level_idx);
       ++insertion_point;
       sorted_levels->insert(insertion_point, px);
     }
     s_levels[order->level_idx].m_qty = s_levels[order->level_idx].m_qty + qty;
   }
   // shared between cancel(aka partial cancel aka reduce) and execute
-  void REDUCE_ORDER(order_t *order, qty_t const qty)
+  void REDUCE_ORDER(order_level_t *order, qty_t const qty)
   {
     // subtract the reduced quantity from both the level and the order
     s_levels[order->level_idx].m_qty -= qty;
     order->m_qty -= qty;
   }
   // shared between delete and execute
-  void DELETE_ORDER(order_t *order)
+  void DELETE_ORDER(order_level_t *order)
   {
     assert(s_levels[order->level_idx].m_qty >= order->m_qty);
     s_levels[order->level_idx].m_qty -= order->m_qty;

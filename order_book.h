@@ -143,17 +143,17 @@ using order_id_t = uint32_t;
  * as well as just the price level if we want to modify the quantity
  * at the level without searching for it in the book.
  */
-typedef struct order {
+typedef struct order_level {
   qty_t m_qty;
   level_id_t level_idx;
   book_id_t book_idx;
-} order_t;
+} order_level_t;
 
-class price_level
+class price_level_indirect
 {
  public:
-  price_level() {}
-  price_level(sprice_t __price, level_id_t __ptr)
+  price_level_indirect() {}
+  price_level_indirect(sprice_t __price, level_id_t __ptr)
       : m_price(__price), m_ptr(__ptr)
   {
   }
@@ -193,7 +193,7 @@ struct order_id_hash {
 enum class LAYOUT { ARRAY_OF_STRUCTS, STRUCT_OF_ARRAYS };
 enum class TARGET_ISA { GENERIC_C, AVX2 };
 
-template<typename Derived, LAYOUT layout, TARGET_ISA isa, bool TRACE = false>
+template<typename Derived, typename order_t, LAYOUT layout, TARGET_ISA isa, bool TRACE = false>
 class order_book
 {
  public:
@@ -202,7 +202,7 @@ class order_book
   static inline Derived s_books[MAX_BOOKS];  // can we allocate this on the stack?
   static inline oidmap<order_t> oid_map;
   using level_vector = pool<level, level_id_t, NUM_LEVELS>;
-  using sorted_levels_t = std::vector<price_level>;
+  using sorted_levels_t = std::vector<price_level_indirect>;
   // A global allocator for all the price levels allocated by all the books.
   static inline level_vector s_levels;
   using level_ptr_t = level_vector::__ptr;
@@ -214,7 +214,7 @@ class order_book
       printf("ADD %u, %u, %d, %u", oid, book_idx, price, qty);
     }
     oid_map.reserve(oid);
-    order *order = oid_map.get(oid);
+    order_t *order = oid_map.get(oid);
     order->m_qty = qty;
     order->book_idx = book_idx;
 
@@ -229,8 +229,8 @@ class order_book
     if ( TRACE ) {
       printf("DELETE %u\n", oid);
     }
-      order_t *order = oid_map.get(oid);
-      static_cast<Derived *>(&s_books[size_t(order->book_idx)])->DELETE_ORDER(order);
+    order_t *order = oid_map.get(oid);
+    static_cast<Derived *>(&s_books[size_t(order->book_idx)])->DELETE_ORDER(order);
   }
   static void cancel_order(order_id_t const oid, qty_t const qty)
   {
