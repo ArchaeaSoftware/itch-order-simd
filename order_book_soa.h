@@ -7,6 +7,8 @@ public:
   sorted_prices_t m_ask_prices;
   sorted_levels_t m_bid_levels;
   sorted_levels_t m_ask_levels;
+  using level_vector = pool<level, level_id_t, NUM_LEVELS>;
+  static inline level_vector s_levels;
 #if CROSS_CHECK
   order_book_scalar reference_;
 

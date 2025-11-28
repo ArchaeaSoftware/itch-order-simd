@@ -144,10 +144,18 @@ using order_id_t = uint32_t;
  * at the level without searching for it in the book.
  */
 typedef struct order_level {
-  qty_t m_qty;
-  level_id_t level_idx;
   book_id_t book_idx;
+  level_id_t level_idx;
+  qty_t m_qty;
 } order_level_t;
+
+typedef struct order_price {
+  book_id_t book_idx;
+  level_id_t level_idx;
+  qty_t m_qty;
+  sprice_t m_price;
+} order_price_t;
+
 
 class price_level_indirect
 {
@@ -201,11 +209,6 @@ class order_book
   static constexpr size_t NUM_LEVELS = 1 << 20;
   static inline Derived s_books[MAX_BOOKS];  // can we allocate this on the stack?
   static inline oidmap<order_t> oid_map;
-  using level_vector = pool<level, level_id_t, NUM_LEVELS>;
-  using sorted_levels_t = std::vector<price_level_indirect>;
-  // A global allocator for all the price levels allocated by all the books.
-  static inline level_vector s_levels;
-  using level_ptr_t = level_vector::__ptr;
 
   static void add_order(order_id_t const oid, book_id_t const book_idx,
                         sprice_t const price, qty_t const qty)

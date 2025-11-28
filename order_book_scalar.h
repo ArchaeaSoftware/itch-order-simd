@@ -4,6 +4,8 @@ public:
   using sorted_levels_t = std::vector<price_level_indirect>;
   sorted_levels_t m_bids;
   sorted_levels_t m_asks;
+  using level_vector = pool<level, level_id_t, NUM_LEVELS>;
+  static inline level_vector s_levels;
   void ADD_ORDER(order_level_t *order, sprice_t const price, qty_t const qty)
   {
     sorted_levels_t *sorted_levels = is_bid(price) ? &m_bids : &m_asks;
