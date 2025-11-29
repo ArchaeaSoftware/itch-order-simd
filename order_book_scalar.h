@@ -6,6 +6,9 @@ public:
   sorted_levels_t m_asks;
   using level_vector = pool<level, level_id_t, NUM_LEVELS>;
   static inline level_vector s_levels;
+  bool check_order_bid ( const order_level_t *order ) const {
+    return s_levels[ order->level_idx ].m_price > 0;
+  }
   void ADD_ORDER(order_level_t *order, sprice_t const price, qty_t const qty)
   {
     sorted_levels_t *sorted_levels = is_bid(price) ? &m_bids : &m_asks;

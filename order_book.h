@@ -147,15 +147,34 @@ typedef struct order_level {
   book_id_t book_idx;
   level_id_t level_idx;
   qty_t m_qty;
+#if CROSS_CHECK
+  order_id_t oid;
+#endif
+  void initialize(order_id_t __oid, book_id_t __book_idx, sprice_t __price, qty_t __qty) {
+#if CROSS_CHECK
+    oid = __oid;
+#endif
+    book_idx = __book_idx;
+    m_qty = __qty;
+  }
 } order_level_t;
 
 typedef struct order_price {
   book_id_t book_idx;
-  level_id_t level_idx;
   qty_t m_qty;
   sprice_t m_price;
+#if CROSS_CHECK
+  order_id_t oid;
+#endif
+  void initialize(order_id_t __oid, book_id_t __book_idx, sprice_t __price, qty_t __qty) {
+#if CROSS_CHECK
+    oid = __oid;
+#endif
+    book_idx = __book_idx;
+    m_price = __price;
+    m_qty = __qty;
+  }
 } order_price_t;
-
 
 class price_level_indirect
 {
@@ -218,14 +237,11 @@ class order_book
     }
     oid_map.reserve(oid);
     order_t *order = oid_map.get(oid);
-    order->m_qty = qty;
-    order->book_idx = book_idx;
-
-    static_cast<Derived *>(&s_books[size_t(order->book_idx)])->ADD_ORDER(order, price, qty);
+    order->initialize( oid, book_idx, price, qty );
     if ( TRACE ) {
-      auto lvl = oid_map[oid].level_idx;
-      printf(", %u, %u \n", lvl, s_books[size_t(book_idx)].s_levels[lvl].m_qty);
+      printf("ADD %p, %u, %u, %d, %u\n", &s_books[size_t(order->book_idx)], oid, book_idx, price, qty);
     }
+    static_cast<Derived *>(&s_books[size_t(order->book_idx)])->ADD_ORDER(order, price, qty);
   }
   static void delete_order(order_id_t const oid)
   {
@@ -265,7 +281,7 @@ class order_book
     }
     order_t *order = oid_map.get(old_oid);
     auto book = static_cast<Derived *>(&s_books[size_t(order->book_idx)]);
-    bool const bid = is_bid(book->s_levels[order->level_idx].m_price);
+    bool const bid = book->check_order_bid( order );
     book->DELETE_ORDER(order);
     book->add_order(new_oid, order->book_idx, (bid) ? new_price : -new_price, new_qty);
   }
@@ -273,3 +289,4 @@ class order_book
 
 #include "order_book_scalar.h"
 #include "order_book_soa.h"
+#include "order_book_soa_price.h"
