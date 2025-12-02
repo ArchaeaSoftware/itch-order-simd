@@ -169,7 +169,8 @@ int main(int argc, char *argv[])
   }
   //timeBacktest<order_book_soa>( filename );
   //timeBacktest<order_book_soa_price>( filename );
-  timeBacktest<order_book_scalar>( filename );
+  timeBacktest<order_book_soa_avx2>( filename );
+  //timeBacktest<order_book_scalar>( filename );
   return 0;
 
 }

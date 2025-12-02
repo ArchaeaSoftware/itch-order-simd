@@ -2,7 +2,10 @@
 #include <vector>
 #include <cstdint>
 #include <cstdio>
+#include <cstdlib>
+#include <limits>
 #include "itch.h"
+#include "align.h"
 #include <type_traits>
 #include <cassert>
 
@@ -55,12 +58,70 @@
  * from stl container resizing.
  */
 
-#define CROSS_CHECK 0
+#define CROSS_CHECK 1
 
 constexpr bool is_power_of_two(uint64_t n)
 {  // stolen from linux header
   return (n != 0 && ((n & (n - 1)) == 0));
 }
+
+/* Custom allocator for 64-byte aligned allocations that allocates in chunks.
+ * This is required for efficient SIMD operations and cache line alignment.
+ * ChunkSize specifies the minimum allocation granularity (default 8 for AVX2).
+ */
+template <typename T, size_t Alignment = 64, size_t ChunkSize = 8>
+class aligned_allocator {
+public:
+  using value_type = T;
+  using size_type = std::size_t;
+  using difference_type = std::ptrdiff_t;
+
+  aligned_allocator() noexcept = default;
+
+  template <typename U>
+  aligned_allocator(const aligned_allocator<U, Alignment, ChunkSize>&) noexcept {}
+
+  template <typename U>
+  struct rebind {
+    using other = aligned_allocator<U, Alignment, ChunkSize>;
+  };
+
+  T* allocate(size_type n) {
+    if (n == 0) {
+      return nullptr;
+    }
+    // Round up to next multiple of ChunkSize
+    size_type n_chunked = ((n + ChunkSize - 1) / ChunkSize) * ChunkSize;
+
+    if (n_chunked > std::numeric_limits<size_type>::max() / sizeof(T)) {
+      throw std::bad_alloc();
+    }
+
+    size_type byte_size = n_chunked * sizeof(T);
+    // Ensure byte_size is a multiple of Alignment for aligned_alloc
+    byte_size = ((byte_size + Alignment - 1) / Alignment) * Alignment;
+
+    void* ptr = aligned_alloc(Alignment, byte_size);
+    if (!ptr) {
+      throw std::bad_alloc();
+    }
+    return static_cast<T*>(ptr);
+  }
+
+  void deallocate(T* ptr, size_type) noexcept {
+    free(ptr);
+  }
+
+  template <typename U>
+  bool operator==(const aligned_allocator<U, Alignment, ChunkSize>&) const noexcept {
+    return true;
+  }
+
+  template <typename U>
+  bool operator!=(const aligned_allocator<U, Alignment, ChunkSize>&) const noexcept {
+    return false;
+  }
+};
 
 using sprice_t = int32_t;
 bool constexpr is_bid(sprice_t const x) { return int32_t(x) >= 0; }
@@ -233,14 +294,11 @@ class order_book
                         sprice_t const price, qty_t const qty)
   {
     if ( TRACE ) {
-      printf("ADD %u, %u, %d, %u", oid, book_idx, price, qty);
+      printf("ADD %u, %u, %d, %u\n", oid, book_idx, price, qty);
     }
     oid_map.reserve(oid);
     order_t *order = oid_map.get(oid);
     order->initialize( oid, book_idx, price, qty );
-    if ( TRACE ) {
-      printf("ADD %p, %u, %u, %d, %u\n", &s_books[size_t(order->book_idx)], oid, book_idx, price, qty);
-    }
     static_cast<Derived *>(&s_books[size_t(order->book_idx)])->ADD_ORDER(order, price, qty);
   }
   static void delete_order(order_id_t const oid)
@@ -290,3 +348,4 @@ class order_book
 #include "order_book_scalar.h"
 #include "order_book_soa.h"
 #include "order_book_soa_price.h"
+#include "order_book_soa_avx2.h"
