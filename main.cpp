@@ -209,29 +209,31 @@ int main(int argc, char *argv[])
   }
 
   // Run with appropriate ISA and trace setting
+  TRACE trace_mode = trace ? TRACE::ENABLED : TRACE::DISABLED;
+
   if (isa == "scalar") {
-    if (trace) {
-      timeBacktest<order_book_scalar<true>>( filename );
+    if (trace_mode == TRACE::ENABLED) {
+      timeBacktest<order_book_scalar<TRACE::ENABLED>>( filename );
     } else {
-      timeBacktest<order_book_scalar<false>>( filename );
+      timeBacktest<order_book_scalar<TRACE::DISABLED>>( filename );
     }
   } else if (isa == "soa") {
-    if (trace) {
-      timeBacktest<order_book_soa<true>>( filename );
+    if (trace_mode == TRACE::ENABLED) {
+      timeBacktest<order_book_soa<TRACE::ENABLED>>( filename );
     } else {
-      timeBacktest<order_book_soa<false>>( filename );
+      timeBacktest<order_book_soa<TRACE::DISABLED>>( filename );
     }
   } else if (isa == "soa_price") {
-    if (trace) {
-      timeBacktest<order_book_soa_price<true>>( filename );
+    if (trace_mode == TRACE::ENABLED) {
+      timeBacktest<order_book_soa_price<TRACE::ENABLED>>( filename );
     } else {
-      timeBacktest<order_book_soa_price<false>>( filename );
+      timeBacktest<order_book_soa_price<TRACE::DISABLED>>( filename );
     }
   } else if (isa == "avx2") {
-    if (trace) {
-      timeBacktest<order_book_soa_avx2<true>>( filename );
+    if (trace_mode == TRACE::ENABLED) {
+      timeBacktest<order_book_soa_avx2<TRACE::ENABLED>>( filename );
     } else {
-      timeBacktest<order_book_soa_avx2<false>>( filename );
+      timeBacktest<order_book_soa_avx2<TRACE::DISABLED>>( filename );
     }
   } else {
     fprintf(stderr, "Error: Unknown ISA '%s'\n", isa.c_str());

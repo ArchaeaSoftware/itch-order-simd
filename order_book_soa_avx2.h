@@ -63,8 +63,8 @@ Search_avx2( int *p, const vector& v, const T& q, __m256i& v_values, __m256i& v_
   return false;
 }
 
-template<bool TRACE = false>
-class order_book_soa_avx2 : public order_book<order_book_soa_avx2<TRACE>, order_price_t, LAYOUT::ARRAY_OF_STRUCTS, TARGET_ISA::GENERIC_C, TRACE>
+template<TRACE trace = TRACE::DISABLED>
+class order_book_soa_avx2 : public order_book<order_book_soa_avx2<trace>, order_price_t, LAYOUT::ARRAY_OF_STRUCTS, TARGET_ISA::GENERIC_C, trace>
 {
 public:
   static constexpr int32_t price_sentinel = int32_t(1<<30);

@@ -280,8 +280,9 @@ struct order_id_hash {
 
 enum class LAYOUT { ARRAY_OF_STRUCTS, STRUCT_OF_ARRAYS };
 enum class TARGET_ISA { GENERIC_C, AVX2 };
+enum class TRACE { DISABLED, ENABLED };
 
-template<typename Derived, typename order_t, LAYOUT layout, TARGET_ISA isa, bool TRACE = false>
+template<typename Derived, typename order_t, LAYOUT layout, TARGET_ISA isa, TRACE trace = TRACE::DISABLED>
 class order_book
 {
  public:
@@ -293,7 +294,7 @@ class order_book
   static void add_order(order_id_t const oid, book_id_t const book_idx,
                         sprice_t const price, qty_t const qty)
   {
-    if ( TRACE ) {
+    if constexpr ( trace == TRACE::ENABLED ) {
       printf("ADD %u, %u, %d, %u\n", oid, book_idx, price, qty);
     }
     oid_map.reserve(oid);
@@ -303,7 +304,7 @@ class order_book
   }
   static void delete_order(order_id_t const oid)
   {
-    if ( TRACE ) {
+    if constexpr ( trace == TRACE::ENABLED ) {
       printf("DELETE %u\n", oid);
     }
     order_t *order = oid_map.get(oid);
@@ -311,7 +312,7 @@ class order_book
   }
   static void cancel_order(order_id_t const oid, qty_t const qty)
   {
-    if ( TRACE ) {
+    if constexpr ( trace == TRACE::ENABLED ) {
       printf("REDUCE %u, %u\n", oid, qty);
     }
     order_t *order = oid_map.get(oid);
@@ -319,7 +320,7 @@ class order_book
   }
   static void execute_order(order_id_t const oid, qty_t const qty)
   {
-    if ( TRACE ) {
+    if constexpr ( trace == TRACE::ENABLED ) {
       printf("EXECUTE %lu %u\n", uint64_t(oid), qty);
     }
     order_t *order = oid_map.get(oid);
@@ -334,7 +335,7 @@ class order_book
   static void replace_order(order_id_t const old_oid, order_id_t const new_oid,
                               qty_t const new_qty, sprice_t new_price)
   {
-    if ( TRACE ) {
+    if constexpr ( trace == TRACE::ENABLED ) {
       printf("REPLACE %lu %lu %d %u\n", uint64_t(old_oid), uint64_t(new_oid), int32_t(new_price), uint32_t(new_qty));
     }
     order_t *order = oid_map.get(old_oid);
