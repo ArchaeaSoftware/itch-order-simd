@@ -58,7 +58,7 @@
  * from stl container resizing.
  */
 
-#define CROSS_CHECK 1
+#define CROSS_CHECK 0
 
 constexpr bool is_power_of_two(uint64_t n)
 {  // stolen from linux header

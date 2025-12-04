@@ -33,54 +33,38 @@ __attribute__((__always_inline__))
 bool
 Search_avx2( int *p, const vector& v, const T& q, __m256i& v_values, __m256i& v_cmpeq, __m256i& v_cmpgt, int start8 )
 {
-    __m256i *p_v = (__m256i *) v.data();
-    __m256i v_q = _mm256_set1_epi32( int(q) );
-    size_t N8 = v.get_maxi8();
-#if INSTRUMENT_SEARCH_DISTANCE
-    int numIters = 0;
-#endif
-    int cmpgt;
+  int cmpgt;
 
-    if ( start8 >= N8 ) {
-        start8 = N8/2;
+  __m256i *p_v = (__m256i *) v.data();
+  __m256i v_q = _mm256_set1_epi32( int(q) );
+  if ( start8 < v.get_maxi8() ) {
+    v_values = _mm256_load_si256( p_v+start8 );
+    v_cmpeq = _mm256_cmpeq_epi32( v_values, v_q );
+    v_cmpgt = _mm256_cmpgt_epi32( v_values, v_q );
+    int cmpeq = _mm256_movemask_ps( _mm256_castsi256_ps( v_cmpeq ) );
+    if ( cmpeq ) {
+        *p = start8;
+        return true;
     }
-
-    size_t mid8 = start8;
-    do {
-#if INSTRUMENT_SEARCH_DISTANCE
-        numIters += 1;
-#endif
-        v_values = _mm256_load_si256( p_v + mid8 );
-        v_cmpeq = _mm256_cmpeq_epi32( v_values, v_q );
-        v_cmpgt = _mm256_cmpgt_epi32( v_values, v_q );
-        int cmpeq = _mm256_movemask_ps( _mm256_castsi256_ps( v_cmpeq ) );
-        if ( cmpeq ) {
-#if INSTRUMENT_SEARCH_DISTANCE
-            searchDistance.increment( numIters );
-#endif
-            *p = (p_v-((__m256i *) v.data()))+mid8;
-            return true;
-        }
-        cmpgt = _mm256_movemask_ps( _mm256_castsi256_ps( v_cmpgt ) );
-        if ( 0xff==cmpgt ) {
-            N8 = mid8;
-        }
-        else if ( 0==cmpgt ) {
-            p_v += mid8 + 1;
-
-            N8 -= mid8 + 1;
-        }
-        else break; // not found, done looking
-        mid8 = N8/2;
-    } while ( N8 >= 1 );
-#if INSTRUMENT_SEARCH_DISTANCE
-    searchDistance.increment( numIters );
-#endif
-    *p = (p_v-((__m256i *) v.data()))+mid8;
-    return false;
+  }
+  do {
+    v_values = _mm256_load_si256( p_v );
+    v_cmpeq = _mm256_cmpeq_epi32( v_values, v_q );
+    v_cmpgt = _mm256_cmpgt_epi32( v_values, v_q );
+    int cmpeq = _mm256_movemask_ps( _mm256_castsi256_ps( v_cmpeq ) );
+    if ( cmpeq ) {
+        *p = (p_v-((__m256i *) v.data()));
+        return true;
+    }
+    cmpgt = _mm256_movemask_ps( _mm256_castsi256_ps( v_cmpgt ) );
+    p_v += 1;
+  } while ( 0==cmpgt );
+  *p = (p_v-((__m256i *) v.data()))-1;
+  return false;
 }
 
-class order_book_soa_avx2 : public order_book<order_book_soa_avx2, order_price_t, LAYOUT::ARRAY_OF_STRUCTS, TARGET_ISA::GENERIC_C>
+template<bool TRACE = false>
+class order_book_soa_avx2 : public order_book<order_book_soa_avx2<TRACE>, order_price_t, LAYOUT::ARRAY_OF_STRUCTS, TARGET_ISA::GENERIC_C, TRACE>
 {
 public:
   static constexpr int32_t price_sentinel = int32_t(1<<30);
@@ -106,7 +90,7 @@ public:
   }
 
 #if CROSS_CHECK
-  void crosscheck( size_t book_idx, bool is_bid ) {
+  void crosscheck( order_id_t oid, size_t book_idx, bool is_bid ) {
     const auto& book = order_book_scalar::s_books[book_idx];
     auto ref_side = is_bid ? book.m_bids : book.m_asks;
     const auto& our_prices = is_bid ? m_bid_prices : m_ask_prices;
@@ -123,7 +107,7 @@ public:
       return true;
     };
     if ( !compare() ) {
-      printf("CROSSCHECK FAILED on book %zu side %s\n", book_idx, is_bid ? "BID" : "ASK" );
+      printf("CROSSCHECK FAILED on order %u side %s\n", uint32_t(oid), is_bid ? "BID" : "ASK" );
       printf( "Reference: ");
       for ( size_t i = 0; i < ref_side.size(); i++ ) {
         printf( "(%d, %d) ", ref_side[i].m_price, order_book_scalar::s_levels[ref_side[i].m_ptr].m_qty );
@@ -153,16 +137,6 @@ public:
         _mm256_store_si256( (__m256i *) sorted_qtys.data() + i8, v_qtys );
     }
     else {
-#if 0
-      // Update maxi8 to reflect the new element being added
-        size_t current_maxi8 = sorted_prices.get_maxi8();
-        size_t new_maxi8 = current_maxi8;
-
-        // If inserting in the current maxi8 block or beyond, we may need to extend
-        if (i8 >= current_maxi8) {
-            new_maxi8 = i8 + 1;
-        }
-#endif
         __m256i v_price = _mm256_set1_epi32( int32_t( price ) );
 
         v_prices = _mm256_load_si256( (__m256i *) sorted_prices.data() + i8 );
@@ -212,7 +186,7 @@ public:
 
 #if CROSS_CHECK
     order_book_scalar::add_order( order->oid, order->book_idx, price, qty );
-    crosscheck( order->book_idx, is_bid(price) );
+    crosscheck( order->oid, order->book_idx, is_bid(price) );
 #endif
   }
 
@@ -242,7 +216,7 @@ public:
 
 #if CROSS_CHECK
     //order_book_scalar::cancel_order( order->oid, qty );
-    crosscheck( order->book_idx, is_bid( order->m_price ) );
+    crosscheck( order->oid, order->book_idx, is_bid( order->m_price ) );
 #endif
     order->m_qty -= qty;
   }
@@ -297,7 +271,7 @@ public:
     }
 #if CROSS_CHECK
     order_book_scalar::delete_order( order->oid );
-    crosscheck( order->book_idx, is_bid( order->m_price ) );
+    crosscheck( order->oid, order->book_idx, is_bid( order->m_price ) );
 #endif
   }
 };

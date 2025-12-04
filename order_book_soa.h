@@ -1,13 +1,15 @@
-class order_book_soa : public order_book<order_book_soa, order_level_t, LAYOUT::ARRAY_OF_STRUCTS, TARGET_ISA::GENERIC_C>
+template<bool TRACE = false>
+class order_book_soa : public order_book<order_book_soa<TRACE>, order_level_t, LAYOUT::ARRAY_OF_STRUCTS, TARGET_ISA::GENERIC_C, TRACE>
 {
 public:
+  using base = order_book<order_book_soa<TRACE>, order_level_t, LAYOUT::ARRAY_OF_STRUCTS, TARGET_ISA::GENERIC_C, TRACE>;
   using sorted_prices_t = std::vector<sprice_t>;
   using sorted_levels_t = std::vector<level_id_t>;
   sorted_prices_t m_bid_prices;
   sorted_prices_t m_ask_prices;
   sorted_levels_t m_bid_levels;
   sorted_levels_t m_ask_levels;
-  using level_vector = pool<level, level_id_t, NUM_LEVELS>;
+  using level_vector = pool<level, level_id_t, base::NUM_LEVELS>;
   static inline level_vector s_levels;
 #if CROSS_CHECK
   void crosscheck( size_t book_idx, bool is_bid ) {

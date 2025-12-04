@@ -159,18 +159,85 @@ timeBacktest( const std::string filename )
 int main(int argc, char *argv[])
 {
   std::string filename;
+  bool trace = false;
+  std::string isa = "scalar";  // default to scalar implementation
 
-  if ( argc==2 ) {
-    filename = std::string( basename(argv[1]) );
+  // Parse command line arguments
+  for (int i = 1; i < argc; i++) {
+    std::string arg = argv[i];
+    if (arg == "--trace") {
+      trace = true;
+    } else if (arg == "--file" || arg == "-f") {
+      if (i + 1 < argc) {
+        filename = argv[++i];
+      } else {
+        fprintf(stderr, "Error: --file requires an argument\n");
+        return 1;
+      }
+    } else if (arg == "--isa") {
+      if (i + 1 < argc) {
+        isa = argv[++i];
+      } else {
+        fprintf(stderr, "Error: --isa requires an argument\n");
+        return 1;
+      }
+    } else if (arg == "--help" || arg == "-h") {
+      fprintf(stderr, "Usage: %s [options]\n", argv[0]);
+      fprintf(stderr, "Options:\n");
+      fprintf(stderr, "  --file <path>, -f <path>    Input ITCH file\n");
+      fprintf(stderr, "  --isa <implementation>      Order book implementation\n");
+      fprintf(stderr, "                              (scalar, soa, soa_price, avx2)\n");
+      fprintf(stderr, "                              Default: scalar\n");
+      fprintf(stderr, "  --trace                     Enable trace mode\n");
+      fprintf(stderr, "  --help, -h                  Show this help message\n");
+      return 0;
+    } else if (arg[0] == '-') {
+      fprintf(stderr, "Unknown option: %s\n", arg.c_str());
+      fprintf(stderr, "Use --help for usage information\n");
+      return 1;
+    } else {
+      // Positional argument - treat as filename for backwards compatibility
+      filename = arg;
+    }
   }
-  else {
-    fprintf( stderr, "Usage: %s <itch_file>\n", argv[0] );
-    return 1; 
+
+  if (filename.empty()) {
+    fprintf(stderr, "Error: No input file specified\n");
+    fprintf(stderr, "Usage: %s [options] --file <itch_file>\n", argv[0]);
+    fprintf(stderr, "Use --help for more information\n");
+    return 1;
   }
-  //timeBacktest<order_book_soa>( filename );
-  //timeBacktest<order_book_soa_price>( filename );
-  timeBacktest<order_book_soa_avx2>( filename );
-  //timeBacktest<order_book_scalar>( filename );
+
+  // Run with appropriate ISA and trace setting
+  if (isa == "scalar") {
+    if (trace) {
+      timeBacktest<order_book_scalar<true>>( filename );
+    } else {
+      timeBacktest<order_book_scalar<false>>( filename );
+    }
+  } else if (isa == "soa") {
+    if (trace) {
+      timeBacktest<order_book_soa<true>>( filename );
+    } else {
+      timeBacktest<order_book_soa<false>>( filename );
+    }
+  } else if (isa == "soa_price") {
+    if (trace) {
+      timeBacktest<order_book_soa_price<true>>( filename );
+    } else {
+      timeBacktest<order_book_soa_price<false>>( filename );
+    }
+  } else if (isa == "avx2") {
+    if (trace) {
+      timeBacktest<order_book_soa_avx2<true>>( filename );
+    } else {
+      timeBacktest<order_book_soa_avx2<false>>( filename );
+    }
+  } else {
+    fprintf(stderr, "Error: Unknown ISA '%s'\n", isa.c_str());
+    fprintf(stderr, "Valid options: scalar, soa, soa_price, avx2\n");
+    return 1;
+  }
+
   return 0;
-
 }

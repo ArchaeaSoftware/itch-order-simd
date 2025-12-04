@@ -1,6 +1,7 @@
 #include <algorithm>
 
-class order_book_soa_price : public order_book<order_book_soa_price, order_price_t, LAYOUT::ARRAY_OF_STRUCTS, TARGET_ISA::GENERIC_C>
+template<bool TRACE = false>
+class order_book_soa_price : public order_book<order_book_soa_price<TRACE>, order_price_t, LAYOUT::ARRAY_OF_STRUCTS, TARGET_ISA::GENERIC_C, TRACE>
 {
 public:
   using sorted_prices_t = std::vector<sprice_t>;
