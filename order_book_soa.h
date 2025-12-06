@@ -13,7 +13,7 @@ public:
   static inline level_vector s_levels;
 #if CROSS_CHECK
   void crosscheck( size_t book_idx, bool is_bid ) {
-    const auto& book = order_book_scalar::s_books[book_idx];
+    const auto& book = order_book_scalar<TRACE::DISABLED>::s_books[book_idx];
     auto ref_side = is_bid ? book.m_bids : book.m_asks;
     auto our_levels = is_bid ? m_bid_levels : m_ask_levels;
     auto our_prices = is_bid ? m_bid_prices : m_ask_prices;
@@ -21,7 +21,7 @@ public:
     assert( ref_side.size() == our_levels.size() );
     for ( size_t i = 0; i < our_prices.size(); i++ ) {
       assert( ref_side[i].m_price == our_prices[i] );
-      assert( order_book_scalar::s_levels[ref_side[i].m_ptr].m_qty == s_levels[our_levels[i]].m_qty );
+      assert( order_book_scalar<TRACE::DISABLED>::s_levels[ref_side[i].m_ptr].m_qty == s_levels[our_levels[i]].m_qty );
     }
   }
 #endif
@@ -58,7 +58,7 @@ public:
     }
     s_levels[order->level_idx].m_qty += qty;
 #if CROSS_CHECK
-    order_book_scalar::add_order( order->oid, order->book_idx, price, qty );
+    order_book_scalar<TRACE::DISABLED>::add_order( order->oid, order->book_idx, price, qty );
     crosscheck( order->book_idx, is_bid(price) );
 #endif
   }
@@ -68,7 +68,7 @@ public:
     // subtract the reduced quantity from both the level and the order
     s_levels[order->level_idx].m_qty -= qty;
 #if CROSS_CHECK
-    order_book_scalar::cancel_order( order->oid, qty );
+    order_book_scalar<TRACE::DISABLED>::cancel_order( order->oid, qty );
     crosscheck( order->book_idx, is_bid( s_levels[order->level_idx].m_price ) );
 #endif
     // this got done by reference_.REDUCE_ORDER in the CROSS_CHECK case
@@ -95,7 +95,7 @@ public:
       s_levels.free(order->level_idx);
     }
 #if CROSS_CHECK
-    order_book_scalar::delete_order( order->oid );
+    order_book_scalar<TRACE::DISABLED>::delete_order( order->oid );
     crosscheck( order->book_idx, is_bid( s_levels[order->level_idx].m_price ) );
 #endif
   }

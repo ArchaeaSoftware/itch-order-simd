@@ -37,7 +37,7 @@ Search_avx2( int *p, const vector& v, const T& q, __m256i& v_values, __m256i& v_
 
   __m256i *p_v = (__m256i *) v.data();
   __m256i v_q = _mm256_set1_epi32( int(q) );
-  if ( start8 < v.get_maxi8() ) {
+  if ( start8 < v.getN8() ) {
     v_values = _mm256_load_si256( p_v+start8 );
     v_cmpeq = _mm256_cmpeq_epi32( v_values, v_q );
     v_cmpgt = _mm256_cmpgt_epi32( v_values, v_q );
@@ -69,8 +69,8 @@ class order_book_soa_avx2 : public order_book<order_book_soa_avx2<trace>, order_
 public:
   static constexpr int32_t price_sentinel = int32_t(1<<30);
 
-  using sorted_prices_t = AlignedVector<sprice_t, Alignment::AVX>;
-  using sorted_qtys_t = AlignedVector<qty_t, Alignment::AVX>;
+  using sorted_prices_t = AlignedVector<sprice_t, Alignment::AVX2>;
+  using sorted_qtys_t = AlignedVector<qty_t, Alignment::AVX2>;
 
   order_book_soa_avx2():
     lasti8(0),
@@ -91,7 +91,7 @@ public:
 
 #if CROSS_CHECK
   void crosscheck( order_id_t oid, size_t book_idx, bool is_bid ) {
-    const auto& book = order_book_scalar::s_books[book_idx];
+    const auto& book = order_book_scalar<TRACE::DISABLED>::s_books[book_idx];
     auto ref_side = is_bid ? book.m_bids : book.m_asks;
     const auto& our_prices = is_bid ? m_bid_prices : m_ask_prices;
     const auto& our_qtys = is_bid ? m_bid_qtys : m_ask_qtys;
@@ -100,7 +100,7 @@ public:
         if( ref_side[i].m_price != our_prices[i] ) {
           return false;
         }
-        if( order_book_scalar::s_levels[ref_side[i].m_ptr].m_qty != our_qtys[i] ) {
+        if( order_book_scalar<TRACE::DISABLED>::s_levels[ref_side[i].m_ptr].m_qty != our_qtys[i] ) {
           return false;
         }
       }
@@ -110,7 +110,7 @@ public:
       printf("CROSSCHECK FAILED on order %u side %s\n", uint32_t(oid), is_bid ? "BID" : "ASK" );
       printf( "Reference: ");
       for ( size_t i = 0; i < ref_side.size(); i++ ) {
-        printf( "(%d, %d) ", ref_side[i].m_price, order_book_scalar::s_levels[ref_side[i].m_ptr].m_qty );
+        printf( "(%d, %d) ", ref_side[i].m_price, order_book_scalar<TRACE::DISABLED>::s_levels[ref_side[i].m_ptr].m_qty );
       }
       printf( "\nOur book: ");
       for ( size_t i = 0; our_prices[i] != price_sentinel; i++ ) {
@@ -180,12 +180,12 @@ public:
         } while ( ! sentinels );
 
         // Update maxi8 after insertion
-        sorted_prices.set_maxi8(i8);
-        sorted_qtys.set_maxi8(i8);
+        sorted_prices.setN8(i8);
+        sorted_qtys.setN8(i8);
     }
 
 #if CROSS_CHECK
-    order_book_scalar::add_order( order->oid, order->book_idx, price, qty );
+    order_book_scalar<TRACE::DISABLED>::add_order( order->oid, order->book_idx, price, qty );
     crosscheck( order->oid, order->book_idx, is_bid(price) );
 #endif
   }
@@ -194,7 +194,7 @@ public:
   void REDUCE_ORDER(order_price_t *order, qty_t const qty)
   {
 #if CROSS_CHECK
-    order_book_scalar::cancel_order( order->oid, qty );
+    order_book_scalar<TRACE::DISABLED>::cancel_order( order->oid, qty );
 #endif
     sorted_prices_t& sorted_prices = is_bid(order->m_price) ? m_bid_prices : m_ask_prices;
     sorted_qtys_t& sorted_qtys = is_bid(order->m_price) ? m_bid_qtys : m_ask_qtys;
@@ -267,10 +267,10 @@ public:
         v_output_qty = _mm256_srl_4b_si256<4>( v_next_qty );
         v_next_price = _mm256_load_si256( p_p+1 /*(__m256i *) sorted_prices.data() + i8 + 1*/ );
         v_next_qty = _mm256_load_si256( p_q+1 /*(__m256i *) sorted_qtys.data() + i8 + 1*/ );
-      } while ( i8 < sorted_prices.get_maxi8() );
+      } while ( i8 < sorted_prices.getN8() );
     }
 #if CROSS_CHECK
-    order_book_scalar::delete_order( order->oid );
+    order_book_scalar<TRACE::DISABLED>::delete_order( order->oid );
     crosscheck( order->oid, order->book_idx, is_bid( order->m_price ) );
 #endif
   }

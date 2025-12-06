@@ -16,7 +16,7 @@ public:
 
 #if CROSS_CHECK
   void crosscheck( size_t book_idx, bool is_bid ) {
-    const auto& book = order_book_scalar::s_books[book_idx];
+    const auto& book = order_book_scalar<TRACE::DISABLED>::s_books[book_idx];
     auto ref_side = is_bid ? book.m_bids : book.m_asks;
     auto our_prices = is_bid ? m_bid_prices : m_ask_prices;
     auto our_qtys = is_bid ? m_bid_qtys : m_ask_qtys;
@@ -25,7 +25,7 @@ public:
     assert( ref_side.size() == our_qtys.size() );
     for ( size_t i = 0; i < our_prices.size(); i++ ) {
       assert( ref_side[i].m_price == our_prices[i] );
-      assert( order_book_scalar::s_levels[ref_side[i].m_ptr].m_qty == our_qtys[i] );
+      assert( order_book_scalar<TRACE::DISABLED>::s_levels[ref_side[i].m_ptr].m_qty == our_qtys[i] );
     }
   }
 #endif
@@ -58,7 +58,7 @@ public:
       sorted_qtys.insert(sorted_qtys.begin()+idx, qty );
     }
 #if CROSS_CHECK
-    order_book_scalar::add_order( order->oid, order->book_idx, price, qty );
+    order_book_scalar<TRACE::DISABLED>::add_order( order->oid, order->book_idx, price, qty );
     crosscheck( order->book_idx, is_bid(price) );
 #endif
   }
@@ -72,7 +72,7 @@ public:
     auto idx = it - sorted_prices.begin();
     sorted_qtys[idx] -= qty;
 #if CROSS_CHECK
-    order_book_scalar::cancel_order( order->oid, qty );
+    order_book_scalar<TRACE::DISABLED>::cancel_order( order->oid, qty );
     crosscheck( order->book_idx, is_bid( order->m_price ) );
 #endif
     // this got done by cancel_order in the CROSS_CHECK case
@@ -92,7 +92,7 @@ public:
       sorted_qtys.erase( sorted_qtys.begin() + idx );
     }
 #if CROSS_CHECK
-    order_book_scalar::delete_order( order->oid );
+    order_book_scalar<TRACE::DISABLED>::delete_order( order->oid );
     crosscheck( order->book_idx, is_bid( order->m_price ) );
 #endif
   }

@@ -60,69 +60,6 @@
 
 #define CROSS_CHECK 0
 
-constexpr bool is_power_of_two(uint64_t n)
-{  // stolen from linux header
-  return (n != 0 && ((n & (n - 1)) == 0));
-}
-
-/* Custom allocator for 64-byte aligned allocations that allocates in chunks.
- * This is required for efficient SIMD operations and cache line alignment.
- * ChunkSize specifies the minimum allocation granularity (default 8 for AVX2).
- */
-template <typename T, size_t Alignment = 64, size_t ChunkSize = 8>
-class aligned_allocator {
-public:
-  using value_type = T;
-  using size_type = std::size_t;
-  using difference_type = std::ptrdiff_t;
-
-  aligned_allocator() noexcept = default;
-
-  template <typename U>
-  aligned_allocator(const aligned_allocator<U, Alignment, ChunkSize>&) noexcept {}
-
-  template <typename U>
-  struct rebind {
-    using other = aligned_allocator<U, Alignment, ChunkSize>;
-  };
-
-  T* allocate(size_type n) {
-    if (n == 0) {
-      return nullptr;
-    }
-    // Round up to next multiple of ChunkSize
-    size_type n_chunked = ((n + ChunkSize - 1) / ChunkSize) * ChunkSize;
-
-    if (n_chunked > std::numeric_limits<size_type>::max() / sizeof(T)) {
-      throw std::bad_alloc();
-    }
-
-    size_type byte_size = n_chunked * sizeof(T);
-    // Ensure byte_size is a multiple of Alignment for aligned_alloc
-    byte_size = ((byte_size + Alignment - 1) / Alignment) * Alignment;
-
-    void* ptr = aligned_alloc(Alignment, byte_size);
-    if (!ptr) {
-      throw std::bad_alloc();
-    }
-    return static_cast<T*>(ptr);
-  }
-
-  void deallocate(T* ptr, size_type) noexcept {
-    free(ptr);
-  }
-
-  template <typename U>
-  bool operator==(const aligned_allocator<U, Alignment, ChunkSize>&) const noexcept {
-    return true;
-  }
-
-  template <typename U>
-  bool operator!=(const aligned_allocator<U, Alignment, ChunkSize>&) const noexcept {
-    return false;
-  }
-};
-
 using sprice_t = int32_t;
 bool constexpr is_bid(sprice_t const x) { return int32_t(x) >= 0; }
 // Helper to extract an integral underlying type for ptr_t while avoiding
@@ -254,7 +191,6 @@ class oidmap
 {
  public:
   std::vector<T> m_data;
-  size_t m_size;
   void reserve(order_id_t const oid)
   {
     size_t const idx = size_t(oid);
@@ -279,7 +215,6 @@ struct order_id_hash {
 };
 
 enum class LAYOUT { ARRAY_OF_STRUCTS, STRUCT_OF_ARRAYS };
-enum class TARGET_ISA { GENERIC_C, AVX2 };
 enum class TRACE { DISABLED, ENABLED };
 
 template<typename Derived, typename order_t, LAYOUT layout, TARGET_ISA isa, TRACE trace = TRACE::DISABLED>
