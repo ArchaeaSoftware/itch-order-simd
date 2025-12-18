@@ -1,8 +1,8 @@
 template<TRACE trace = TRACE::DISABLED>
-class order_book_soa : public order_book<order_book_soa<trace>, order_level_t, LAYOUT::ARRAY_OF_STRUCTS, TARGET_ISA::GENERIC_C, trace>
+class order_book_soa : public order_book<order_book_soa<trace>, order_level_t, trace>
 {
 public:
-  using base = order_book<order_book_soa<trace>, order_level_t, LAYOUT::ARRAY_OF_STRUCTS, TARGET_ISA::GENERIC_C, trace>;
+  using base = order_book<order_book_soa<trace>, order_level_t, trace>;
   using sorted_prices_t = std::vector<sprice_t>;
   using sorted_levels_t = std::vector<level_id_t>;
   sorted_prices_t m_bid_prices;

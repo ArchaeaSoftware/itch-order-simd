@@ -162,6 +162,17 @@ int main(int argc, char *argv[])
   bool trace = false;
   std::string isa = "scalar";  // default to scalar implementation
 
+  auto print_usage = [argv]() -> void {
+      fprintf(stderr, "Usage: %s [options]\n", argv[0]);
+      fprintf(stderr, "Options:\n");
+      fprintf(stderr, "  --file <path>, -f <path>    Input ITCH file\n");
+      fprintf(stderr, "  --isa <implementation>      Order book implementation\n");
+      fprintf(stderr, "                              (scalar, soa, soa_price, avx2)\n");
+      fprintf(stderr, "                              Default: scalar\n");
+      fprintf(stderr, "  --trace                     Enable trace mode\n");
+      fprintf(stderr, "  --help, -h                  Show this help message\n");
+  };
+
   // Parse command line arguments
   for (int i = 1; i < argc; i++) {
     std::string arg = argv[i];
@@ -182,18 +193,10 @@ int main(int argc, char *argv[])
         return 1;
       }
     } else if (arg == "--help" || arg == "-h") {
-      fprintf(stderr, "Usage: %s [options]\n", argv[0]);
-      fprintf(stderr, "Options:\n");
-      fprintf(stderr, "  --file <path>, -f <path>    Input ITCH file\n");
-      fprintf(stderr, "  --isa <implementation>      Order book implementation\n");
-      fprintf(stderr, "                              (scalar, soa, soa_price, avx2)\n");
-      fprintf(stderr, "                              Default: scalar\n");
-      fprintf(stderr, "  --trace                     Enable trace mode\n");
-      fprintf(stderr, "  --help, -h                  Show this help message\n");
-      return 0;
+      print_usage();
     } else if (arg[0] == '-') {
       fprintf(stderr, "Unknown option: %s\n", arg.c_str());
-      fprintf(stderr, "Use --help for usage information\n");
+      print_usage();
       return 1;
     } else {
       // Positional argument - treat as filename for backwards compatibility
@@ -203,8 +206,7 @@ int main(int argc, char *argv[])
 
   if (filename.empty()) {
     fprintf(stderr, "Error: No input file specified\n");
-    fprintf(stderr, "Usage: %s [options] --file <itch_file>\n", argv[0]);
-    fprintf(stderr, "Use --help for more information\n");
+    print_usage();
     return 1;
   }
 

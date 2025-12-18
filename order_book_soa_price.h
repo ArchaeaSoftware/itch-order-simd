@@ -1,7 +1,7 @@
 #include <algorithm>
 
 template<TRACE trace = TRACE::DISABLED>
-class order_book_soa_price : public order_book<order_book_soa_price<trace>, order_price_t, LAYOUT::ARRAY_OF_STRUCTS, TARGET_ISA::GENERIC_C, trace>
+class order_book_soa_price : public order_book<order_book_soa_price<trace>, order_price_t, trace>
 {
 public:
   using sorted_prices_t = std::vector<sprice_t>;
