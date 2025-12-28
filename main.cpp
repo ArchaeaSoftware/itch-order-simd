@@ -80,11 +80,13 @@ timeBacktest( const std::string filename )
       DO_CASE(itch_t::PROCESS_LULD_AUCTION_COLLAR_MESSAGE);
 
       case (itch_t::ADD_ORDER): {
+        auto const pkt = PROCESS<itch_t::ADD_ORDER>::read_from(&buf);
+
         if (!npkts) {
           start = std::chrono::steady_clock::now();
           ++npkts;
         }
-        auto const pkt = PROCESS<itch_t::ADD_ORDER>::read_from(&buf);
+
         assert(uint64_t(pkt.oid) <
                uint64_t(std::numeric_limits<int32_t>::max()));
         T::add_order(order_id_t(pkt.oid), book_id_t(pkt.stock_locate),
@@ -151,15 +153,16 @@ timeBacktest( const std::string filename )
   std::chrono::steady_clock::time_point end = std::chrono::steady_clock::now();
   size_t nanos =
       std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count();
+
   printf("%lu packets in %lu nanos , %.2f nanos per packet \n", npkts, nanos,
          nanos / (double)npkts);
-    return nanos / (double)npkts;
+  return nanos / (double)npkts;
 }
 
 int main(int argc, char *argv[])
 {
   std::string filename;
-  bool trace = false;
+  bool enable_trace = false;
   std::string isa = "scalar";  // default to scalar implementation
 
   auto print_usage = [argv]() -> void {
@@ -177,7 +180,7 @@ int main(int argc, char *argv[])
   for (int i = 1; i < argc; i++) {
     std::string arg = argv[i];
     if (arg == "--trace") {
-      trace = true;
+      enable_trace = true;
     } else if (arg == "--file" || arg == "-f") {
       if (i + 1 < argc) {
         filename = argv[++i];
@@ -211,7 +214,7 @@ int main(int argc, char *argv[])
   }
 
   // Run with appropriate ISA and trace setting
-  TRACE trace_mode = trace ? TRACE::ENABLED : TRACE::DISABLED;
+  TRACE trace_mode = enable_trace ? TRACE::ENABLED : TRACE::DISABLED;
 
   if (isa == "scalar") {
     if (trace_mode == TRACE::ENABLED) {

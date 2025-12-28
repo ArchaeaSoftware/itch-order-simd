@@ -36,7 +36,7 @@ public:
       ++insertion_point;
       sorted_levels->insert(insertion_point, px);
     }
-    s_levels[order->level_idx].m_qty = s_levels[order->level_idx].m_qty + qty;
+    s_levels[order->level_idx].m_qty += qty;
   }
   // shared between cancel(aka partial cancel aka reduce) and execute
   void REDUCE_ORDER(order_level_t *order, qty_t const qty)

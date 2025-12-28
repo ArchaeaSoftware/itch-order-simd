@@ -58,6 +58,8 @@
  * from stl container resizing.
  */
 
+#define CROSS_CHECK 1
+
 using sprice_t = int32_t;
 bool constexpr is_bid(sprice_t const x) { return int32_t(x) >= 0; }
 // Helper to extract an integral underlying type for ptr_t while avoiding
@@ -214,7 +216,6 @@ struct order_id_hash {
 
 enum class LAYOUT { ARRAY_OF_STRUCTS, STRUCT_OF_ARRAYS };
 enum class TRACE { DISABLED, ENABLED };
-enum class CROSS_CHECK { DISABLED, ENABLED };
 
 template<typename Derived, typename order_t, TRACE trace = TRACE::DISABLED>
 class order_book
@@ -284,4 +285,3 @@ class order_book
 #include "order_book_soa.h"
 #include "order_book_soa_price.h"
 #include "order_book_soa_avx2.h"
-//#include "order_book_soa_avx512.h"
